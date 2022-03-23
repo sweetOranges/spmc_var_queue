@@ -51,7 +51,6 @@ spmc_var_queue* spmc_var_queue_construct(void *mem, int64_t len)
 }
 
 
-
 spmc_var_queue * spmc_var_queue_init(int len)
 {
 	void *mem = malloc(len * sizeof(spmc_var_queue_block) + sizeof(spmc_var_queue));
@@ -90,7 +89,7 @@ spmc_var_queue * spmc_var_queue_connect_shm(const char *filename)
 }
 
 
-spmc_var_queue_block * spmc_var_queue_alloc(spmc_var_queue *q, uint16_t size)
+spmc_var_queue_block * spmc_var_queue_alloc(spmc_var_queue *q, uint64_t size)
 {
 	size += sizeof(spmc_var_queue_block);
 	uint64_t blk_sz = (size + sizeof(spmc_var_queue_block) - 1) / sizeof(spmc_var_queue_block);
@@ -100,9 +99,10 @@ spmc_var_queue_block * spmc_var_queue_alloc(spmc_var_queue *q, uint16_t size)
 		q->data[q->write_idx % q->block_cnt].size = 0;
 		__atomic_add_fetch(&q->write_idx, padding_sz, __ATOMIC_RELEASE);
 	}
-	spmc_var_queue_block &header = q->data[q->write_idx % q->block_cnt];
-	header.size = size;
-	return &header;
+	spmc_var_queue_block *header = &q->data[q->write_idx % q->block_cnt];
+	header->size = size;
+	header++;
+	return header;
 }
 
 void spmc_var_queue_push(spmc_var_queue *q)
@@ -131,7 +131,9 @@ spmc_var_queue_block* spmc_var_queue_read(spmc_var_queue_reader *reader)
 			return nullptr;
 		}
 	}
-	return &reader->q->data[reader->read_idx % reader->q->block_cnt];
+	spmc_var_queue_block *header = &reader->q->data[reader->read_idx % reader->q->block_cnt];
+	header++;
+	return header;
 }
 
 void spmc_var_queue_pop(spmc_var_queue_reader *reader)
